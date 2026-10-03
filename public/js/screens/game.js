@@ -329,6 +329,18 @@ function MatchScreen() {
   // (last round's battle): combat only enters an m.field pushed after that (a new object), and every new m.field
   // push (watch switch, reconnect) re-enters the battle view.
   const showPrep = (mode === 'prep' || mode === 'boot') && !watchingOther;
+  // Collapsing the shop changes the prep camera as well as hiding the bar, so the whole board and bench use the
+  // matching no-shop framing. The pen keeps its own camera; camRef remembers this option for the return trip.
+  const setShopCollapsed = useCallback((next) => {
+    const value = !!next;
+    setCollapsed(value);
+    if (!showPrep || viewModeRef.current !== 'prep' || penRef.current.on) return;
+    const current = camRef.current;
+    if (!['prep', 'bossPrep'].includes(current.kind) || current.opts?.shop === !value) return;
+    if (live.current.facing) cancelFacingRef.current();
+    setSel(null);
+    setCam(current.kind, { ...current.opts, shop: !value });
+  }, [showPrep, setCam]);
 
   // own board (prep, or a battle field the player fights on) → the stage with the player's overrides; a teammate's
   // board → the plain stage (their overrides are not known here)
@@ -1168,7 +1180,7 @@ function MatchScreen() {
         <${Button} size="sm" variant="primary" icon="back" onClick=${() => watchPlayer({ playerId: myId })}>返回自己<//>
       </div>` : null}
 
-      ${showShop ? html`<${ShopBar} priv=${priv} editable=${editable} collapsed=${collapsed} onCollapse=${setCollapsed}
+      ${showShop ? html`<${ShopBar} priv=${priv} editable=${editable} collapsed=${collapsed} onCollapse=${setShopCollapsed}
         barRef=${barRef}
         onBuy=${buy} onLevel=${() => actions.levelUp()} onRefresh=${() => actions.refresh()} onFreeze=${() => actions.freeze()}
         onDetail=${(id, kind, hint) => setDetail({ kind: kind === 'item' ? 'item' : 'chess', id, hint: hint || null })}
@@ -1178,7 +1190,7 @@ function MatchScreen() {
         onReward=${(i) => actions.reward(i)} onRewardLater=${() => setRewardMin(true)} onArm=${setArmedCard} />` : null}
 
       ${phase === PHASE.PREP && priv?.shop?.rewardOffer ? html`<${RewardOverlay} priv=${priv} minimized=${rewardMin || collapsed}
-        onMinimize=${(m) => { setRewardMin(m); if (!m) setCollapsed(false); }} />` : null}
+        onMinimize=${(m) => { setRewardMin(m); if (!m) setShopCollapsed(false); }} />` : null}
 
       ${combat || mode === 'settle' ? html`<${CombatHud} pub=${pub} myId=${myId} watching=${watchingNow} hud=${hud} myDone=${!!myDone && alive}
         spectating=${!alive} onWatch=${watchField}
@@ -1230,4 +1242,3 @@ function MatchScreen() {
     <${ExitModal} open=${exitOpen} onClose=${() => setExitOpen(false)} solo=${solo} />
   </div>`;
 }
-
